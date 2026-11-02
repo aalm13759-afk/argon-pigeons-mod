@@ -12,15 +12,17 @@ jobs:
       - name: 1. سحب الملفات من المستودع
         uses: actions/checkout@v4
 
-      - name: 2. فك ضغط ملف المود تلقائياً (إن كان مرفوعاً بصيغة zip)
+      - name: 2. فك ضغط ملف المود وتصحيح المتغير تلقائياً
         run: |
           if ls *.zip 1> /dev/null 2>&1; then
             unzip -o *.zip
             if [ -d "argon_loft_pigeons_forge_1.20.1" ]; then
-              cp -rn argon_loft_pigeons_forge_1.20.1/* .
+              cp -rf argon_loft_pigeons_forge_1.20.1/* .
             fi
           fi
-          ls -la
+          if ! grep -q "exploreWaypointShared" src/main/java/com/argon/loftpigeons/entity/ArgonPigeonEntity.java; then
+            sed -i 's/private boolean launchedByOwner = false;/private boolean launchedByOwner = false;\n    public Vec3 exploreWaypointShared = null;/' src/main/java/com/argon/loftpigeons/entity/ArgonPigeonEntity.java
+          fi
 
       - name: 3. تثبيت Java 17 لماينكرافت 1.20.1
         uses: actions/setup-java@v4
