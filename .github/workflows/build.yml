@@ -12,17 +12,82 @@ jobs:
       - name: 1. سحب الملفات من المستودع
         uses: actions/checkout@v4
 
-      - name: 2. فك ضغط ملف المود وتصحيح المتغير تلقائياً
+      - name: 2. فك ضغط المود وتصحيح رابط مكتبة GeckoLib تلقائياً
         run: |
-          if ls *.zip 1> /dev/null 2>&1; then
-            unzip -o *.zip
-            if [ -d "argon_loft_pigeons_forge_1.20.1" ]; then
-              cp -rf argon_loft_pigeons_forge_1.20.1/* .
-            fi
+          rm -rf src build.gradle gradle.properties settings.gradle
+          NEWEST_ZIP=$(ls -t *.zip | head -n 1)
+          echo "Extracting: $NEWEST_ZIP"
+          unzip -o "$NEWEST_ZIP"
+          if [ -d "argon_loft_pigeons_forge_1.20.1" ]; then
+            cp -rf argon_loft_pigeons_forge_1.20.1/* .
           fi
-          if ! grep -q "exploreWaypointShared" src/main/java/com/argon/loftpigeons/entity/ArgonPigeonEntity.java; then
-            sed -i 's/private boolean launchedByOwner = false;/private boolean launchedByOwner = false;\n    public Vec3 exploreWaypointShared = null;/' src/main/java/com/argon/loftpigeons/entity/ArgonPigeonEntity.java
-          fi
+          sed -i 's/geckolib-forge:/geckolib-forge-/g' build.gradle
+          cat << 'JAVA_EOF' > src/main/java/com/argon/loftpigeons/item/MarwanGuideBookItem.java
+          package com.argon.loftpigeons.item;
+
+          import com.argon.loftpigeons.ArgonLoftPigeonsMod;
+          import net.minecraft.nbt.CompoundTag;
+          import net.minecraft.nbt.ListTag;
+          import net.minecraft.nbt.StringTag;
+          import net.minecraft.network.chat.Component;
+          import net.minecraft.world.InteractionHand;
+          import net.minecraft.world.InteractionResultHolder;
+          import net.minecraft.world.entity.player.Player;
+          import net.minecraft.world.item.Item;
+          import net.minecraft.world.item.ItemStack;
+          import net.minecraft.world.item.TooltipFlag;
+          import net.minecraft.world.level.Level;
+          import net.minecraftforge.api.distmarker.Dist;
+          import net.minecraftforge.fml.DistExecutor;
+          import org.jetbrains.annotations.Nullable;
+          import java.util.List;
+
+          public class MarwanGuideBookItem extends Item {
+              public MarwanGuideBookItem(Properties props) { super(props); }
+
+              @Override
+              public Component getName(ItemStack stack) {
+                  return Component.literal("§bتعليمات مروان للطيور");
+              }
+
+              public static void populatePagesIfNeeded(ItemStack stack) {
+                  CompoundTag tag = stack.getOrCreateTag();
+                  if (tag.contains("pages")) return;
+                  tag.putString("title", "تعليمات مروان للطيور");
+                  tag.putString("author", "مروان");
+                  tag.putBoolean("resolved", true);
+                  String[] rawPages = new String[]{
+                      "§3§lتعليمات مروان للطيور§r\\n\\n§0الدليل الشامل لمود حمام اللوفت الواقعي (1.20.1).\\nيشرح السلالات الـ 5، الهجائن الـ 3، حفظ السطح، الذكاء والحدة، التزاوج والفراخ، وجميع الأدوات.",
+                      "§3§l1. الزاجل والأحمر§r\\n\\n§1• الزاجل:§0 ذكاء 85+%، حفظ 15 يوماً، يطير 0.5-3 ساعات مع قلب الجناح ولا يضيع أبداً.\\n§4• الأحمر:§0 حفظ 8 أيام، يحوم 5-7 دوائر ويقلب جناحه لمنطقة قريبة ويعود بنسبة 80% بعد زيارتين.",
+                      "§3§l2. التيدي الباكستاني§r\\n\\n§0• الذكاء: 90%+ دائماً.\\n• الحدة: 60-100.\\n• حفظ السطح: 15 يوماً للحاد (85+) و20 يوماً لأقل من 84.\\n• الطيران: 4-14 ساعة للبند فوق الغيم. طفرة الحدة تختفي عند الريشة 10.",
+                      "§3§l3. الكظماوي والكولدن§r\\n\\n§1• الأبيض الكظماوي:§0 بارد الدم، حفظ 10 أيام، يطير 4-9 ساعات.\\n§6• الكولدن:§0 حفظ 20 يوماً، يطير 10-13 ساعة للبند، وتختفي طفرة الحدة عند الريشة 10.",
+                      "§3§l4. الهجائن الثلاثة§r\\n\\n§2• تيدي × كظماوي:§0 حفظ 12 يوماً، طيران 8 ساعات.\\n§6• كظماوي × كولدن:§0 حفظ 15 يوماً، طيران 12 ساعة للبند.\\n§5• تيدي × كولدن:§0 حفظ 25 يوماً، طيران 15 ساعة بأشكال مطعمة.",
+                      "§3§l5. الأدوات والتزاوج§r\\n\\n§0• الخانة + الفخار النحاسي (3 كوبر) + المعلف وعلف m7.\\n• تبيض باليوم 1 و3، وترقد 5 أيام، وتزق الفرخين 5 أيام حتى الريشة 1.\\n• يموت الطير إذا بقي 3 أيام بدون أكل m7."
+                  };
+                  ListTag pagesList = new ListTag();
+                  for (String p : rawPages) {
+                      pagesList.add(StringTag.valueOf(Component.Serializer.toJson(Component.literal(p))));
+                  }
+                  tag.put("pages", pagesList);
+              }
+
+              @Override
+              public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+                  ItemStack stack = player.getItemInHand(hand);
+                  populatePagesIfNeeded(stack);
+                  if (level.isClientSide) {
+                      DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> ArgonLoftPigeonsMod.ClientModEvents.openMarwanGuideBook(stack));
+                  }
+                  return InteractionResultHolder.sidedSuccess(stack, level.isClientSide);
+              }
+
+              @Override
+              public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tooltip, TooltipFlag flag) {
+                  tooltip.add(Component.literal("§3كتاب تعليمات مروان الشامل لكل أسرار حمام اللوفت."));
+                  tooltip.add(Component.literal("§bاضغط كلك يمين لفتح الكتاب وقراءة الصفحات."));
+              }
+          }
+          JAVA_EOF
 
       - name: 3. تثبيت Java 17 لماينكرافت 1.20.1
         uses: actions/setup-java@v4
@@ -43,4 +108,3 @@ jobs:
         with:
           name: argonloftpigeons-1.20.1-mod-jar
           path: build/libs/*.jar
-          
